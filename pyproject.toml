@@ -1,9 +1,9 @@
 [project]
-name = "graph-gatekeeper"
+name = "camshaft"
 version = "0.1.0"
-description = "Micro-Precision Gatekeeper using Graphiti, FalkorDB, and ms-marco-MiniLM-L6-v2"
+description = "Unified Graph/Vector DB Retrieval and ColBERT SDK"
 authors = [
-    {name = "Antigravity", email = "AI"}
+    {name = "User", email = "user@example.com"}
 ]
 dependencies = [
     "falkordb>=1.0.0",

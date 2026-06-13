@@ -1,66 +1,55 @@
-# Graph Gatekeeper (CamShaft)
+# CamShaft SDK
 
-Graph Gatekeeper is a high-precision retrieval and ranking pipeline designed to sit between a Graph/Vector Database (like FalkorDB) and an LLM. It solves the common "vibe-matching" problems of traditional Bi-Encoders and Cross-Encoders by implementing token-level late interaction via Stanford's ColBERTv2.0.
+CamShaft is a unified Software Development Kit (SDK) that bundles **Graphifyy**, **Graphiti**, **FalkorDB**, and the **Stanford ColBERT Gatekeeper** into a single cohesive ecosystem. It is designed to run on *any machine without installing dependencies* using Docker.
 
-## Why ColBERT?
+## Why CamShaft?
 
-Traditional retrieval models (Bi-Encoders) and even global rerankers (Cross-Encoders) often fail at strict syntactic matching. For example, they may treat `user.isAuthenticated()` and `!user.isAuthenticated()` identically because the `!` token is drowned out by the semantic weight of the rest of the sentence.
+Traditional retrieval models fail at strict syntactic matching (like `!user.isAuthenticated()`). The ColBERT Gatekeeper solves this via token-level MaxSim matching. By bundling this with Graphifyy (AST parsing) and Graphiti (memory tracking), you get an intelligent, temporally-aware, syntactically-perfect AI memory system.
 
-ColBERT solves this by computing a **MaxSim** matrix. It maintains distinct vectors for every token in the query and compares them explicitly to every token in the candidate code chunk. This explicitly preserves logical operators and variable nuances, acting as a highly precise "Gatekeeper".
+## Run Anywhere (Zero Install)
 
-## Architecture
+Because installing Graphiti, FalkorDB, and PyTorch/ColBERT locally can lead to dependency hell, CamShaft provides a pre-configured Docker ecosystem.
 
-1. **Graph/Vector DB Retrieval (`src/graph_gatekeeper/db.py`)**
-   - Connects to FalkorDB and retrieves a broad list of candidate nodes using standard hybrid search.
-2. **Late-Interaction Gatekeeper (`src/graph_gatekeeper/gatekeeper.py`)**
-   - Implements a pure PyTorch Stanford ColBERTv2.0 scoring pipeline.
-   - Takes the raw database candidates and re-ranks them using token-level matching to prune irrelevant or logically incorrect chunks.
-3. **Pipeline Orchestration (`src/graph_gatekeeper/pipeline.py`)**
-   - Glues the database retrieval and ColBERT ranking into a single, seamless pipeline.
+1. Ensure [Docker](https://docs.docker.com/get-docker/) is installed.
+2. In the root of this repository, run:
+   ```bash
+   docker compose up -d
+   ```
+3. Connect to the SDK container to run scripts:
+   ```bash
+   docker exec -it camshaft-sdk bash
+   ```
 
-## Installation
+## SDK Usage
 
-This package requires Python 3.10+.
-
-```bash
-pip install -e .
-```
-
-Dependencies:
-- `falkordb`
-- `graphiti-core`
-- `graphifyy`
-- `torch`
-- `transformers`
-- `huggingface_hub`
-- `safetensors`
-
-## Usage
+Inside the Docker container (or if you manually installed it via `pip install -e .`), you can use the unified SDK:
 
 ```python
-from graph_gatekeeper import GatekeeperPipeline
+from camshaft import CamShaft
 
-# Initialize the pipeline
-pipeline = GatekeeperPipeline(
-    db_host="localhost", 
-    db_port=6379, 
-    colbert_model="colbert-ir/colbertv2.0"
+# Initialize the unified client. It automatically connects to FalkorDB.
+# In Docker, the DB_HOST is automatically set to "falkordb"
+import os
+sdk = CamShaft(
+    db_host=os.environ.get("DB_HOST", "localhost"),
+    db_port=6379
 )
 
-# Run a query
-query = "Show me the code path when the user is NOT authenticated."
-results = pipeline.run(query, initial_top_k=15, final_top_k=2)
+# 1. Ingest an entire codebase via Graphifyy -> Graphiti -> FalkorDB
+sdk.ingest("/path/to/your/codebase")
+
+# 2. Query the exact syntax you need using the ColBERT Gatekeeper
+results = sdk.query("Show me the code path when the user is NOT authenticated.")
 
 for rank, chunk in enumerate(results, 1):
     print(f"Rank {rank}: [Score: {chunk['score']:.4f}]")
     print(chunk['content'])
-    print("---")
 ```
 
 ## Running the Precision Tests
 
-An `example.py` file is included in the root directory to demonstrate the Gatekeeper's ability to catch Variable Swapping and Logical Negation bugs.
+An `example.py` file is included to demonstrate the Gatekeeper catching Variable Swapping and Logical Negation bugs. Run it inside the container:
 
 ```bash
-PYTHONPATH=src python example.py
+python example.py
 ```

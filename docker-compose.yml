@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  # FalkorDB: The Graph/Vector Database backend for Graphiti & CamShaft
+  falkordb:
+    image: falkordb/falkordb:latest
+    ports:
+      - "6379:6379"
+      - "3000:3000"
+    volumes:
+      - falkordb-data:/data
+
+  # CamShaft SDK: The unified environment with ColBERT, Graphifyy, and Graphiti
+  camshaft-sdk:
+    build: .
+    volumes:
+      - .:/app
+    depends_on:
+      - falkordb
+    environment:
+      - DB_HOST=falkordb
+      - DB_PORT=6379
+    # Keep the container alive so users can attach/exec into it
+    tty: true
+    stdin_open: true
+
+volumes:
+  falkordb-data:

@@ -1,4 +1,4 @@
-from graph_gatekeeper.gatekeeper import CrossEncoderGatekeeper
+from camshaft.gatekeeper import CrossEncoderGatekeeper
 
 def main():
     print("Initializing Gatekeeper...")

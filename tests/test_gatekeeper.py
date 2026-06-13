@@ -1,4 +1,4 @@
-from graph_gatekeeper.gatekeeper import CrossEncoderGatekeeper
+from camshaft.gatekeeper import CrossEncoderGatekeeper
 
 def test_syntax_blindness():
     """Problem A: Variable Swapping Bug"""
