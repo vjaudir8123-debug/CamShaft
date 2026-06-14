@@ -1,0 +1,89 @@
+import argparse
+import os
+import uvicorn
+from fastapi import FastAPI, Request, BackgroundTasks
+from fastapi.responses import StreamingResponse
+import httpx
+import json
+from .client import CamShaft
+
+app = FastAPI(title="CamShaft Proxy Server")
+
+# Global variables for the SDK and target model URL
+sdk = None
+TARGET_OPENAI_URL = os.environ.get("TARGET_OPENAI_URL", "https://api.openai.com/v1")
+
+@app.on_event("startup")
+async def startup_event():
+    global sdk
+    db_host = os.environ.get("DB_HOST", "localhost")
+    db_port = int(os.environ.get("DB_PORT", 6379))
+    sdk = CamShaft(db_host=db_host, db_port=db_port)
+    print("CamShaft SDK initialized in Proxy.")
+
+@app.post("/v1/chat/completions")
+async def chat_completions(request: Request, background_tasks: BackgroundTasks):
+    body = await request.json()
+    messages = body.get("messages", [])
+    
+    if not messages:
+        return {"error": "No messages provided"}
+    
+    # Get the last user message
+    last_message = messages[-1].get("content", "")
+    
+    # 1. Query the CamShaft Memory
+    results = sdk.query(last_message)
+    
+    # 2. Augment the System Prompt
+    memory_context = "--- GRAPHITI/COLBERT MEMORY CONTEXT ---\n"
+    for r in results:
+        memory_context += f"{r['content']}\n"
+    memory_context += "---------------------------------------\n"
+    
+    # Prepend the memory to the last user message (or inject as a system message)
+    augmented_messages = list(messages)
+    augmented_messages[-1]["content"] = f"{memory_context}\nUser Request: {last_message}"
+    
+    body["messages"] = augmented_messages
+    
+    # Remove any host header before forwarding
+    headers = dict(request.headers)
+    headers.pop("host", None)
+    
+    # 3. Forward to the actual LLM (Streaming support)
+    client = httpx.AsyncClient()
+    req = client.build_request("POST", f"{TARGET_OPENAI_URL}/chat/completions", headers=headers, json=body)
+    
+    response = await client.send(req, stream=True)
+    
+    async def stream_response():
+        async for chunk in response.aiter_bytes():
+            yield chunk
+        await client.aclose()
+        
+    return StreamingResponse(
+        stream_response(),
+        status_code=response.status_code,
+        headers=dict(response.headers)
+    )
+
+def main():
+    parser = argparse.ArgumentParser(description="Start the CamShaft OpenAI-Compatible Proxy")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to bind the proxy to")
+    parser.add_argument("--port", type=int, default=8000, help="Port to run the proxy on")
+    parser.add_argument("--db-host", type=str, default="localhost", help="FalkorDB host")
+    parser.add_argument("--db-port", type=int, default=6379, help="FalkorDB port")
+    parser.add_argument("--target-url", type=str, default="https://api.openai.com/v1", help="Actual OpenAI API URL to forward to (or Ollama/Local LLM URL)")
+    
+    args = parser.parse_args()
+    
+    os.environ["DB_HOST"] = args.db_host
+    os.environ["DB_PORT"] = str(args.db_port)
+    os.environ["TARGET_OPENAI_URL"] = args.target_url
+    
+    print(f"Starting CamShaft Proxy on http://{args.host}:{args.port}/v1")
+    uvicorn.run(app, host=args.host, port=args.port)
+
+if __name__ == "__main__":
+    main()

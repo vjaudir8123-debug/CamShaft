@@ -9,13 +9,18 @@ dependencies = [
     "falkordb>=1.0.0",
     "graphiti-core>=0.2.0",
     "graphifyy>=0.0.1",
-    "ragatouille>=0.0.8",
     "torch>=2.0.0",
+    "transformers",
+    "huggingface_hub",
+    "safetensors",
+    "fastapi",
+    "uvicorn",
+    "httpx",
 ]
 requires-python = ">=3.10"
 
 [project.scripts]
-camshaft = "camshaft.cli:main"
+camshaft = "camshaft.proxy:main"
 
 [build-system]
 requires = ["hatchling"]
