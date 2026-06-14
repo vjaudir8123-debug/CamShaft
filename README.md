@@ -1,44 +1,50 @@
 # CamShaft SDK
 
-CamShaft is a unified Software Development Kit (SDK) that bundles **Graphifyy**, **Graphiti**, **FalkorDB**, and the **Stanford ColBERT Gatekeeper** into a single cohesive ecosystem. It is designed to run on *any machine without installing dependencies* using Docker.
+CamShaft is a unified Software Development Kit (SDK) and Command Line Interface (CLI) that bundles **Graphifyy**, **Graphiti**, **FalkorDB**, and the **Stanford ColBERT Gatekeeper** into a single cohesive ecosystem.
 
 ## Why CamShaft?
 
 Traditional retrieval models fail at strict syntactic matching (like `!user.isAuthenticated()`). The ColBERT Gatekeeper solves this via token-level MaxSim matching. By bundling this with Graphifyy (AST parsing) and Graphiti (memory tracking), you get an intelligent, temporally-aware, syntactically-perfect AI memory system.
 
-## Run Anywhere (Zero Install)
+## Installation
 
-Because installing Graphiti, FalkorDB, and PyTorch/ColBERT locally can lead to dependency hell, CamShaft provides a pre-configured Docker ecosystem.
+This is a pure Python package. Install it globally or within your virtual environment:
 
-1. Ensure [Docker](https://docs.docker.com/get-docker/) is installed.
-2. In the root of this repository, run:
-   ```bash
-   docker compose up -d
-   ```
-3. Connect to the SDK container to run scripts:
-   ```bash
-   docker exec -it camshaft-sdk bash
-   ```
+```bash
+pip install -e .
+```
 
-## SDK Usage
+> **Note:** Because this SDK relies on FalkorDB for its graph/vector database, you must ensure you have a FalkorDB instance running locally (e.g., via Docker `docker run -p 6379:6379 falkordb/falkordb`) or have a cloud URL ready before running ingestion or queries.
 
-Inside the Docker container (or if you manually installed it via `pip install -e .`), you can use the unified SDK:
+## CLI Usage
+
+Installing this package registers the `camshaft` command in your terminal, so you can run it from anywhere.
+
+### 1. Ingest Codebase
+To scan an entire codebase via Graphifyy, map the AST to Graphiti, and save it in FalkorDB:
+```bash
+camshaft ingest /path/to/your/codebase --db-host localhost --db-port 6379
+```
+
+### 2. Query Memory
+To retrieve candidate chunks and apply the ColBERT Gatekeeper token-level MaxSim logic:
+```bash
+camshaft query "Show me the code path when the user is NOT authenticated."
+```
+
+## Python SDK Usage
+
+You can also use the unified SDK directly in your Python scripts:
 
 ```python
 from camshaft import CamShaft
 
-# Initialize the unified client. It automatically connects to FalkorDB.
-# In Docker, the DB_HOST is automatically set to "falkordb"
-import os
-sdk = CamShaft(
-    db_host=os.environ.get("DB_HOST", "localhost"),
-    db_port=6379
-)
+sdk = CamShaft(db_host="localhost", db_port=6379)
 
-# 1. Ingest an entire codebase via Graphifyy -> Graphiti -> FalkorDB
+# 1. Ingest
 sdk.ingest("/path/to/your/codebase")
 
-# 2. Query the exact syntax you need using the ColBERT Gatekeeper
+# 2. Query
 results = sdk.query("Show me the code path when the user is NOT authenticated.")
 
 for rank, chunk in enumerate(results, 1):
@@ -48,7 +54,7 @@ for rank, chunk in enumerate(results, 1):
 
 ## Running the Precision Tests
 
-An `example.py` file is included to demonstrate the Gatekeeper catching Variable Swapping and Logical Negation bugs. Run it inside the container:
+An `example.py` file is included to demonstrate the Gatekeeper catching Variable Swapping and Logical Negation bugs. 
 
 ```bash
 python example.py
