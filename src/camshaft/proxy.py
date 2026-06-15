@@ -10,9 +10,8 @@ from .search import perform_deep_search
 
 app = FastAPI(title="CamShaft Proxy Server")
 
-# Global variables for the SDK and target model URL
+# Global variables for the SDK
 sdk = None
-TARGET_OPENAI_URL = os.environ.get("TARGET_OPENAI_URL", "https://api.openai.com/v1")
 
 @app.on_event("startup")
 async def startup_event():
@@ -47,10 +46,14 @@ async def chat_completions(request: Request, background_tasks: BackgroundTasks):
     # Check for deep search trigger
     deep_search_context = ""
     clean_query_text = query_text
+    
+    # Read target url from env (set by main)
+    target_openai_url = os.environ.get("TARGET_OPENAI_URL", "https://api.openai.com/v1")
+    
     if query_text.strip().startswith("/search "):
         search_query = query_text.strip()[8:].strip()
         clean_query_text = search_query # Query the codebase with the actual query, not the command
-        deep_search_context = await perform_deep_search(search_query, TARGET_OPENAI_URL)
+        deep_search_context = await perform_deep_search(search_query, target_openai_url)
     
     # 1. Query the CamShaft Memory
     results = sdk.query(clean_query_text)
@@ -87,7 +90,7 @@ async def chat_completions(request: Request, background_tasks: BackgroundTasks):
     
     # 3. Forward to the actual LLM (Streaming support)
     client = httpx.AsyncClient()
-    req = client.build_request("POST", f"{TARGET_OPENAI_URL}/chat/completions", headers=headers, json=body)
+    req = client.build_request("POST", f"{target_openai_url}/chat/completions", headers=headers, json=body)
     
     response = await client.send(req, stream=True)
     

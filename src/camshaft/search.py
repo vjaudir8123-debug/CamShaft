@@ -103,17 +103,20 @@ async def perform_deep_search(query: str, target_llm_url: str) -> str:
             print(f"[Agent] {reply}")
             messages.append({"role": "assistant", "content": reply})
             
-            if reply.startswith("FINAL:"):
-                return reply.replace("FINAL:", "").strip()
+            if "FINAL:" in reply:
+                return reply.split("FINAL:")[-1].strip()
                 
-            elif reply.startswith("SEARCH("):
-                search_term = reply[7:-1].strip("'\"")
+            search_match = re.search(r'SEARCH\(\s*[\'"]?([^\'"]+)[\'"]?\s*\)', reply)
+            download_match = re.search(r'DOWNLOAD\(\s*[\'"]?([^\'"]+)[\'"]?\s*\)', reply)
+            
+            if search_match:
+                search_term = search_match.group(1)
                 print(f"[*] Executing Search: {search_term}")
                 snippets = await search_duckduckgo_html(search_term, client)
                 messages.append({"role": "user", "content": f"Search Results:\n{snippets}"})
                 
-            elif reply.startswith("DOWNLOAD("):
-                url = reply[9:-1].strip("'\"")
+            elif download_match:
+                url = download_match.group(1)
                 print(f"[*] Executing Download: {url}")
                 page_text = await download_and_extract(url, client)
                 messages.append({"role": "user", "content": f"Page Content:\n{page_text}"})
