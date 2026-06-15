@@ -47,23 +47,24 @@ async def chat_completions(request: Request, background_tasks: BackgroundTasks):
     # 1. Query the CamShaft Memory
     results = sdk.query(query_text)
     
-    # 2. Augment the System Prompt
-    memory_context = "--- GRAPHITI/COLBERT MEMORY CONTEXT ---\n"
-    for r in results:
-        memory_context += f"{r['content']}\n"
-    memory_context += "---------------------------------------\n"
-    
-    # Prepend the memory to the last user message safely
-    augmented_messages = list(messages)
-    if isinstance(raw_content, list):
-        for item in augmented_messages[-1]["content"]:
-            if item.get("type") == "text":
-                item["text"] = f"{memory_context}\nUser Request: {item.get('text', '')}"
-                break
-    else:
-        augmented_messages[-1]["content"] = f"{memory_context}\nUser Request: {query_text}"
-    
-    body["messages"] = augmented_messages
+    # 2. Augment the System Prompt only if memory exists
+    if results:
+        memory_context = "--- GRAPHITI/COLBERT MEMORY CONTEXT ---\n"
+        for r in results:
+            memory_context += f"{r['content']}\n"
+        memory_context += "---------------------------------------\n"
+        
+        # Prepend the memory to the last user message safely
+        augmented_messages = list(messages)
+        if isinstance(raw_content, list):
+            for item in augmented_messages[-1]["content"]:
+                if item.get("type") == "text":
+                    item["text"] = f"{memory_context}\nUser Request: {item.get('text', '')}"
+                    break
+        else:
+            augmented_messages[-1]["content"] = f"{memory_context}\nUser Request: {query_text}"
+        
+        body["messages"] = augmented_messages
     
     # Remove problematic headers before forwarding
     headers = dict(request.headers)

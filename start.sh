@@ -20,12 +20,16 @@ else
     exit 1
 fi
 
-# 2. Ingest Codebase
+# 2. Ingest Codebase (Optional)
 echo ""
-echo "[2/3] Ingesting Codebase at '$PROJECT_DIR' into Memory..."
-# Running ingestion module
-python3 -m camshaft.cli ingest "$PROJECT_DIR"
-echo "✅ Codebase ingested successfully."
+if [ "$PROJECT_DIR" = "--skip-ingest" ]; then
+    echo "[2/3] Skipping Codebase Ingestion..."
+else
+    echo "[2/3] Ingesting Codebase at '$PROJECT_DIR' into Memory..."
+    # Running ingestion module
+    python3 -m camshaft.cli ingest "$PROJECT_DIR"
+    echo "✅ Codebase ingested successfully."
+fi
 
 # 3. Start the Proxy Server
 echo ""
