@@ -39,7 +39,7 @@ camshaft --target-url "https://api.openai.com/v1"
 
 ### Python SDK Usage
 
-If you prefer to bypass the proxy and use the memory engine in your own scripts:
+If you prefer to bypass the proxy and use the memory engine in your own scripts (e.g. to wire directly into a LangChain app or Anthropic/OpenAI SDK), you can use the SDK natively. See `example_llm_integration.py` for a full working example of how to inject CamShaft memory into an LLM prompt.
 
 ```python
 from camshaft import CamShaft
