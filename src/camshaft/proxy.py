@@ -29,11 +29,23 @@ async def chat_completions(request: Request, background_tasks: BackgroundTasks):
     if not messages:
         return {"error": "No messages provided"}
     
-    # Get the last user message
-    last_message = messages[-1].get("content", "")
+    # Get the last user message safely handling multimodal arrays
+    raw_content = messages[-1].get("content", "")
+    query_text = ""
+    
+    if isinstance(raw_content, list):
+        for item in raw_content:
+            if item.get("type") == "text":
+                query_text = item.get("text", "")
+                break
+    else:
+        query_text = str(raw_content)
+        
+    if not query_text:
+        return {"error": "No text content found in the last message to query."}
     
     # 1. Query the CamShaft Memory
-    results = sdk.query(last_message)
+    results = sdk.query(query_text)
     
     # 2. Augment the System Prompt
     memory_context = "--- GRAPHITI/COLBERT MEMORY CONTEXT ---\n"
@@ -41,15 +53,22 @@ async def chat_completions(request: Request, background_tasks: BackgroundTasks):
         memory_context += f"{r['content']}\n"
     memory_context += "---------------------------------------\n"
     
-    # Prepend the memory to the last user message (or inject as a system message)
+    # Prepend the memory to the last user message safely
     augmented_messages = list(messages)
-    augmented_messages[-1]["content"] = f"{memory_context}\nUser Request: {last_message}"
+    if isinstance(raw_content, list):
+        for item in augmented_messages[-1]["content"]:
+            if item.get("type") == "text":
+                item["text"] = f"{memory_context}\nUser Request: {item.get('text', '')}"
+                break
+    else:
+        augmented_messages[-1]["content"] = f"{memory_context}\nUser Request: {query_text}"
     
     body["messages"] = augmented_messages
     
-    # Remove any host header before forwarding
+    # Remove problematic headers before forwarding
     headers = dict(request.headers)
-    headers.pop("host", None)
+    for h in ["host", "content-length", "authorization"]:
+        headers.pop(h, None)
     
     # 3. Forward to the actual LLM (Streaming support)
     client = httpx.AsyncClient()
@@ -58,14 +77,21 @@ async def chat_completions(request: Request, background_tasks: BackgroundTasks):
     response = await client.send(req, stream=True)
     
     async def stream_response():
-        async for chunk in response.aiter_bytes():
-            yield chunk
-        await client.aclose()
+        try:
+            async for chunk in response.aiter_bytes():
+                yield chunk
+        finally:
+            await client.aclose()
+            
+    # Remove problematic response headers
+    resp_headers = dict(response.headers)
+    for h in ["content-encoding", "content-length", "transfer-encoding"]:
+        resp_headers.pop(h, None)
         
     return StreamingResponse(
         stream_response(),
         status_code=response.status_code,
-        headers=dict(response.headers)
+        headers=resp_headers
     )
 
 def main():
