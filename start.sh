@@ -15,17 +15,9 @@ echo "[1/3] Checking FalkorDB Status..."
 if nc -z localhost $FALKORDB_PORT 2>/dev/null; then
     echo "✅ FalkorDB is already running on port $FALKORDB_PORT."
 else
-    echo "⚠️  FalkorDB is NOT running on port $FALKORDB_PORT."
-    if command -v docker &> /dev/null; then
-        echo "🐳 Starting FalkorDB via Docker..."
-        docker run -d -p $FALKORDB_PORT:6379 falkordb/falkordb > /dev/null
-        echo "⏳ Waiting for FalkorDB to initialize..."
-        sleep 3
-        echo "✅ FalkorDB started successfully."
-    else
-        echo "❌ ERROR: Docker is not installed. Please install Docker or start FalkorDB manually on port $FALKORDB_PORT."
-        exit 1
-    fi
+    echo "❌ ERROR: FalkorDB is NOT running on port $FALKORDB_PORT."
+    echo "Please start FalkorDB natively before running this script."
+    exit 1
 fi
 
 # 2. Ingest Codebase
