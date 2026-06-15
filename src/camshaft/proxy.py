@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 import httpx
 import json
 from .client import CamShaft
+from .search import perform_deep_search
 
 app = FastAPI(title="CamShaft Proxy Server")
 
@@ -43,26 +44,39 @@ async def chat_completions(request: Request, background_tasks: BackgroundTasks):
         
     if not query_text:
         return {"error": "No text content found in the last message to query."}
+    # Check for deep search trigger
+    deep_search_context = ""
+    clean_query_text = query_text
+    if query_text.strip().startswith("/search "):
+        search_query = query_text.strip()[8:].strip()
+        clean_query_text = search_query # Query the codebase with the actual query, not the command
+        deep_search_context = await perform_deep_search(search_query, TARGET_OPENAI_URL)
     
     # 1. Query the CamShaft Memory
-    results = sdk.query(query_text)
+    results = sdk.query(clean_query_text)
     
-    # 2. Augment the System Prompt only if memory exists
-    if results:
-        memory_context = "--- GRAPHITI/COLBERT MEMORY CONTEXT ---\n"
-        for r in results:
-            memory_context += f"{r['content']}\n"
-        memory_context += "---------------------------------------\n"
+    # 2. Augment the System Prompt with Web and/or Memory Context
+    combined_context = ""
+    
+    if deep_search_context:
+        combined_context += f"--- DEEP WEB SEARCH CONTEXT ---\n{deep_search_context}\n-------------------------------\n\n"
         
-        # Prepend the memory to the last user message safely
+    if results:
+        combined_context += "--- GRAPHITI/COLBERT MEMORY CONTEXT ---\n"
+        for r in results:
+            combined_context += f"{r['content']}\n"
+        combined_context += "---------------------------------------\n"
+        
+    if combined_context:
+        # Prepend the context to the last user message safely
         augmented_messages = list(messages)
         if isinstance(raw_content, list):
             for item in augmented_messages[-1]["content"]:
                 if item.get("type") == "text":
-                    item["text"] = f"{memory_context}\nUser Request: {item.get('text', '')}"
+                    item["text"] = f"{combined_context}\nUser Request: {item.get('text', '').replace('/search ', '', 1)}"
                     break
         else:
-            augmented_messages[-1]["content"] = f"{memory_context}\nUser Request: {query_text}"
+            augmented_messages[-1]["content"] = f"{combined_context}\nUser Request: {clean_query_text}"
         
         body["messages"] = augmented_messages
     
